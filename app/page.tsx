@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { saveRecentCode, getRecentCodes, removeRecentCode } from "@/lib/storage";
+import { saveRecentEntry, getRecentEntries, removeRecentEntry, RecentEntry } from "@/lib/storage";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_RE = /^[A-Z2-9]{4,8}$/;
@@ -18,15 +18,15 @@ export default function Home() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
-  const [recentCodes, setRecentCodes] = useState<string[]>([]);
+  const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
 
   useEffect(() => {
-    getRecentCodes().then(setRecentCodes).catch(() => {});
+    getRecentEntries().then(setRecentEntries).catch(() => {});
   }, []);
 
   const handleCreate = async () => {
     const code = generateCode();
-    await saveRecentCode(code).catch(() => {});
+    await saveRecentEntry(code, "").catch(() => {});
     router.push(`/list/${code}`);
   };
 
@@ -36,13 +36,13 @@ export default function Home() {
       setError("有効なコードを入力してください（4〜8文字の英数字）");
       return;
     }
-    await saveRecentCode(code).catch(() => {});
+    await saveRecentEntry(code, "").catch(() => {});
     router.push(`/list/${code}`);
   };
 
   const handleRemoveRecent = async (code: string) => {
-    await removeRecentCode(code).catch(() => {});
-    setRecentCodes((prev) => prev.filter((c) => c !== code));
+    await removeRecentEntry(code).catch(() => {});
+    setRecentEntries((prev) => prev.filter((e) => e.code !== code));
   };
 
   return (
@@ -97,17 +97,20 @@ export default function Home() {
         </div>
 
         {/* 最近のリスト */}
-        {recentCodes.length > 0 && (
+        {recentEntries.length > 0 && (
           <div className="mt-6">
             <p className="text-sm font-medium text-gray-500 mb-3">最近のリスト</p>
             <div className="flex flex-col gap-2">
-              {recentCodes.map((code) => (
+              {recentEntries.map(({ code, name }) => (
                 <div key={code} className="flex items-center gap-2">
                   <button
                     onClick={() => router.push(`/list/${code}`)}
-                    className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-3 text-left font-mono font-bold tracking-widest text-gray-800 hover:border-indigo-200 transition-colors shadow-sm"
+                    className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-3 text-left shadow-sm hover:border-indigo-200 transition-colors"
                   >
-                    {code}
+                    <p className="font-semibold text-gray-800 truncate">
+                      {name || "名前なし"}
+                    </p>
+                    <p className="text-xs font-mono text-gray-400 mt-0.5">{code}</p>
                   </button>
                   <button
                     onClick={() => handleRemoveRecent(code)}

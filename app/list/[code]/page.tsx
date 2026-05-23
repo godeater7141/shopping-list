@@ -3,11 +3,12 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { ref, onValue, push, update, remove } from "firebase/database";
-import { saveRecentCode } from "@/lib/storage";
+import { ref, onValue, push, update, remove, set } from "firebase/database";
+import { saveRecentEntry } from "@/lib/storage";
 
 const CODE_RE = /^[A-Z2-9]{4,8}$/;
 const ITEM_NAME_MAX = 200;
+const ROOM_NAME_MAX = 50;
 
 interface Item {
   id: string;
@@ -21,17 +22,21 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
   const [newItem, setNewItem] = useState("");
+  const [addError, setAddError] = useState("");
   const [copied, setCopied] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [roomName, setRoomName] = useState("");
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editingName, setEditingName] = useState("");
 
   useEffect(() => {
     if (!CODE_RE.test(code)) {
       router.replace("/");
       return;
     }
-    saveRecentCode(code).catch(() => {});
-    const listRef = ref(db, `lists/${code}/items`);
-    const unsubscribe = onValue(listRef, (snapshot) => {
+
+    const itemsRef = ref(db, `lists/${code}/items`);
+    const unsubscribeItems = onValue(itemsRef, (snapshot) => {
       setConnected(true);
       const data = snapshot.val();
       if (data) {
@@ -44,16 +49,36 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
       } else {
         setItems([]);
       }
+    }, () => setConnected(false));
+
+    const nameRef = ref(db, `lists/${code}/name`);
+    const unsubscribeName = onValue(nameRef, (snapshot) => {
+      const name = snapshot.val();
+      if (typeof name === "string") {
+        setRoomName(name);
+        saveRecentEntry(code, name).catch(() => {});
+      } else {
+        saveRecentEntry(code, "").catch(() => {});
+      }
     });
-    return () => unsubscribe();
+
+    return () => {
+      unsubscribeItems();
+      unsubscribeName();
+    };
   }, [code]);
 
   const addItem = async () => {
     const name = newItem.trim().slice(0, ITEM_NAME_MAX);
     if (!name) return;
-    const listRef = ref(db, `lists/${code}/items`);
-    await push(listRef, { name, checked: false, createdAt: Date.now() });
-    setNewItem("");
+    try {
+      const listRef = ref(db, `lists/${code}/items`);
+      await push(listRef, { name, checked: false, createdAt: Date.now() });
+      setNewItem("");
+      setAddError("");
+    } catch {
+      setAddError("追加できませんでした。接続を確認してください。");
+    }
   };
 
   const toggleItem = async (item: Item) => {
@@ -72,6 +97,20 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const startEditingName = () => {
+    setEditingName(roomName);
+    setIsEditingName(true);
+  };
+
+  const saveName = async () => {
+    setIsEditingName(false);
+    const name = editingName.trim().slice(0, ROOM_NAME_MAX);
+    if (name === roomName) return;
+    const nameRef = ref(db, `lists/${code}/name`);
+    await set(nameRef, name || null);
+    await saveRecentEntry(code, name).catch(() => {});
+  };
+
   const checkedCount = items.filter((i) => i.checked).length;
 
   return (
@@ -85,8 +124,32 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
           >
             ←
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-gray-800">🛒 買い物リスト</h1>
+          <div className="flex-1 min-w-0">
+            {isEditingName ? (
+              <input
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={saveName}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveName();
+                  if (e.key === "Escape") setIsEditingName(false);
+                }}
+                autoFocus
+                maxLength={ROOM_NAME_MAX}
+                placeholder="ルーム名を入力..."
+                className="w-full text-xl font-bold text-gray-800 border-b-2 border-indigo-400 focus:outline-none bg-transparent"
+              />
+            ) : (
+              <button
+                onClick={startEditingName}
+                className="flex items-center gap-1.5 group w-full text-left"
+              >
+                <h1 className="text-xl font-bold text-gray-800 truncate">
+                  {roomName || "🛒 買い物リスト"}
+                </h1>
+                <span className="text-gray-300 group-hover:text-gray-500 text-sm flex-shrink-0">✏️</span>
+              </button>
+            )}
             <div className="flex items-center gap-2 mt-0.5">
               <span
                 className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-gray-300"}`}
@@ -117,12 +180,12 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
           <div className="mb-4">
             <div className="flex justify-between text-sm text-gray-500 mb-1">
               <span>{checkedCount} / {items.length} 完了</span>
-              <span>{items.length > 0 ? Math.round((checkedCount / items.length) * 100) : 0}%</span>
+              <span>{Math.round((checkedCount / items.length) * 100)}%</span>
             </div>
             <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-full bg-indigo-400 rounded-full transition-all duration-300"
-                style={{ width: `${items.length > 0 ? (checkedCount / items.length) * 100 : 0}%` }}
+                style={{ width: `${(checkedCount / items.length) * 100}%` }}
               />
             </div>
           </div>
@@ -178,7 +241,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
           <input
             type="text"
             value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
+            onChange={(e) => { setNewItem(e.target.value); setAddError(""); }}
             onKeyDown={(e) => e.key === "Enter" && addItem()}
             placeholder="アイテムを追加..."
             maxLength={ITEM_NAME_MAX}
@@ -192,6 +255,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
             追加
           </button>
         </div>
+        {addError && <p className="text-red-500 text-sm mt-2">{addError}</p>}
       </div>
     </main>
   );
