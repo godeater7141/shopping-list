@@ -11,8 +11,8 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
 }
 
-function base64ToBytes(b64: string): Uint8Array {
-  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+function base64ToBytes(b64: string): Uint8Array<ArrayBuffer> {
+  return new Uint8Array(Array.from(atob(b64), (c) => c.charCodeAt(0)));
 }
 
 async function getOrCreateKey(): Promise<CryptoKey> {
