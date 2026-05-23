@@ -3,13 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CODE_RE = /^[A-Z2-9]{4,8}$/;
+
 function generateCode(): string {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return code;
+  const bytes = new Uint8Array(6);
+  crypto.getRandomValues(bytes);
+  // CODE_CHARS.length === 32, and 256 / 32 === 8 exactly, so no modulo bias
+  return Array.from(bytes, (b) => CODE_CHARS[b % CODE_CHARS.length]).join("");
 }
 
 export default function Home() {
@@ -24,8 +25,8 @@ export default function Home() {
 
   const handleJoin = () => {
     const code = joinCode.trim().toUpperCase();
-    if (code.length < 4) {
-      setError("コードを入力してください");
+    if (!CODE_RE.test(code)) {
+      setError("有効なコードを入力してください（4〜8文字の英数字）");
       return;
     }
     router.push(`/list/${code}`);
