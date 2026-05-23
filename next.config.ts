@@ -21,7 +21,8 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
       // Firebase Realtime Database (HTTPS + WebSocket)
-      "connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.googleapis.com",
+      // *.firebasedatabase.app は新リージョン、*.firebaseio.com は旧リージョン
+      "connect-src 'self' https://*.firebaseio.com wss://*.firebaseio.com https://*.firebasedatabase.app wss://*.firebasedatabase.app https://*.googleapis.com",
       "img-src 'self' data:",
       "font-src 'self'",
       "frame-ancestors 'none'",
