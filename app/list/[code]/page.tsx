@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { ref, onValue, push, update, remove } from "firebase/database";
 
+const CODE_RE = /^[A-Z2-9]{4,8}$/;
+const ITEM_NAME_MAX = 200;
+
 interface Item {
   id: string;
   name: string;
@@ -21,6 +24,10 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    if (!CODE_RE.test(code)) {
+      router.replace("/");
+      return;
+    }
     const listRef = ref(db, `lists/${code}/items`);
     const unsubscribe = onValue(listRef, (snapshot) => {
       setConnected(true);
@@ -40,7 +47,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
   }, [code]);
 
   const addItem = async () => {
-    const name = newItem.trim();
+    const name = newItem.trim().slice(0, ITEM_NAME_MAX);
     if (!name) return;
     const listRef = ref(db, `lists/${code}/items`);
     await push(listRef, { name, checked: false, createdAt: Date.now() });
@@ -172,6 +179,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
             onChange={(e) => setNewItem(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addItem()}
             placeholder="アイテムを追加..."
+            maxLength={ITEM_NAME_MAX}
             className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-700"
           />
           <button
