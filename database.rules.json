@@ -1,0 +1,34 @@
+{
+  "rules": {
+    "lists": {
+      "$code": {
+        ".read": "$code.matches(/^[A-Z2-9]{4,8}$/)",
+        ".write": "$code.matches(/^[A-Z2-9]{4,8}$/)",
+        "items": {
+          "$itemId": {
+            ".validate": "newData.hasChildren(['name', 'checked', 'createdAt'])",
+            "name": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 200"
+            },
+            "checked": {
+              ".validate": "newData.isBoolean()"
+            },
+            "createdAt": {
+              ".validate": "newData.isNumber() && newData.val() > 0"
+            },
+            "$other": {
+              ".validate": false
+            }
+          }
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
