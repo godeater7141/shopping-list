@@ -25,6 +25,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
   const [addError, setAddError] = useState("");
   const [copied, setCopied] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [connTimeout, setConnTimeout] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [isEditingName, setIsEditingName] = useState(false);
   const [editingName, setEditingName] = useState("");
@@ -35,9 +36,14 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
       return;
     }
 
+    // 8秒以内に接続できなければタイムアウト表示
+    const timeoutId = setTimeout(() => setConnTimeout(true), 8000);
+
     const itemsRef = ref(db, `lists/${code}/items`);
     const unsubscribeItems = onValue(itemsRef, (snapshot) => {
       setConnected(true);
+      setConnTimeout(false);
+      clearTimeout(timeoutId);
       const data = snapshot.val();
       if (data) {
         const loaded: Item[] = Object.entries(data).map(([id, val]) => ({
@@ -63,6 +69,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
     });
 
     return () => {
+      clearTimeout(timeoutId);
       unsubscribeItems();
       unsubscribeName();
     };
@@ -116,6 +123,17 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
   return (
     <main className="flex min-h-screen flex-col items-center px-4 py-8">
       <div className="w-full max-w-sm">
+        {/* 接続タイムアウトバナー */}
+        {connTimeout && !connected && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+            <p className="font-semibold mb-1">Firebaseに接続できません</p>
+            <p>以下を確認してください：</p>
+            <ul className="list-disc list-inside mt-1 space-y-0.5 text-red-600">
+              <li>Vercelの環境変数（NEXT_PUBLIC_FIREBASE_*）が設定されているか</li>
+              <li>特にNEXT_PUBLIC_FIREBASE_DATABASE_URLが正しいか</li>
+            </ul>
+          </div>
+        )}
         {/* ヘッダー */}
         <div className="flex items-center mb-6">
           <button
