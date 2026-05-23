@@ -7,6 +7,11 @@ interface EncryptedEntry {
   ct: string;
 }
 
+export interface RecentEntry {
+  code: string;
+  name: string;
+}
+
 function bytesToBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
 }
@@ -55,42 +60,53 @@ async function decryptEntry(key: CryptoKey, entry: EncryptedEntry): Promise<stri
   return new TextDecoder().decode(pt);
 }
 
-export async function saveRecentCode(code: string): Promise<void> {
+function parseEntry(raw: string): RecentEntry | null {
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed === "object" && typeof parsed.code === "string") return parsed;
+    // 旧フォーマット（コード文字列のみ）の移行
+    if (typeof parsed === "string") return { code: parsed, name: "" };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveRecentEntry(code: string, name: string): Promise<void> {
   const key = await getOrCreateKey();
   const raw = localStorage.getItem(RECENT_STORAGE);
   const entries: EncryptedEntry[] = raw ? JSON.parse(raw) : [];
 
   const decrypted = await Promise.all(
-    entries.map((e) => decryptEntry(key, e).catch(() => null))
+    entries.map((e) => decryptEntry(key, e).then(parseEntry).catch(() => null))
   );
-  // 既存の同一コードを除去してから先頭に追加（重複排除）
-  const filtered = entries.filter((_, i) => decrypted[i] !== null && decrypted[i] !== code);
-  const newEntry = await encryptEntry(key, code);
+  const filtered = entries.filter((_, i) => decrypted[i] !== null && decrypted[i]?.code !== code);
+  const newEntry = await encryptEntry(key, JSON.stringify({ code, name }));
   localStorage.setItem(
     RECENT_STORAGE,
     JSON.stringify([newEntry, ...filtered].slice(0, MAX_RECENT))
   );
 }
 
-export async function getRecentCodes(): Promise<string[]> {
+export async function getRecentEntries(): Promise<RecentEntry[]> {
   const key = await getOrCreateKey();
   const raw = localStorage.getItem(RECENT_STORAGE);
   if (!raw) return [];
   const entries: EncryptedEntry[] = JSON.parse(raw);
   const results = await Promise.all(
-    entries.map((e) => decryptEntry(key, e).catch(() => null))
+    entries.map((e) => decryptEntry(key, e).then(parseEntry).catch(() => null))
   );
-  return results.filter((c): c is string => c !== null);
+  return results.filter((r): r is RecentEntry => r !== null);
 }
 
-export async function removeRecentCode(code: string): Promise<void> {
+export async function removeRecentEntry(code: string): Promise<void> {
   const key = await getOrCreateKey();
   const raw = localStorage.getItem(RECENT_STORAGE);
   if (!raw) return;
   const entries: EncryptedEntry[] = JSON.parse(raw);
   const decrypted = await Promise.all(
-    entries.map((e) => decryptEntry(key, e).catch(() => null))
+    entries.map((e) => decryptEntry(key, e).then(parseEntry).catch(() => null))
   );
-  const filtered = entries.filter((_, i) => decrypted[i] !== code);
+  const filtered = entries.filter((_, i) => decrypted[i]?.code !== code);
   localStorage.setItem(RECENT_STORAGE, JSON.stringify(filtered));
 }
