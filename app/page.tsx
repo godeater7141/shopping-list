@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { saveRecentCode, getRecentCodes, removeRecentCode } from "@/lib/storage";
 
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const CODE_RE = /^[A-Z2-9]{4,8}$/;
@@ -17,19 +18,31 @@ export default function Home() {
   const router = useRouter();
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
+  const [recentCodes, setRecentCodes] = useState<string[]>([]);
 
-  const handleCreate = () => {
+  useEffect(() => {
+    getRecentCodes().then(setRecentCodes).catch(() => {});
+  }, []);
+
+  const handleCreate = async () => {
     const code = generateCode();
+    await saveRecentCode(code).catch(() => {});
     router.push(`/list/${code}`);
   };
 
-  const handleJoin = () => {
+  const handleJoin = async () => {
     const code = joinCode.trim().toUpperCase();
     if (!CODE_RE.test(code)) {
       setError("有効なコードを入力してください（4〜8文字の英数字）");
       return;
     }
+    await saveRecentCode(code).catch(() => {});
     router.push(`/list/${code}`);
+  };
+
+  const handleRemoveRecent = async (code: string) => {
+    await removeRecentCode(code).catch(() => {});
+    setRecentCodes((prev) => prev.filter((c) => c !== code));
   };
 
   return (
@@ -82,6 +95,32 @@ export default function Home() {
           </div>
           {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
         </div>
+
+        {/* 最近のリスト */}
+        {recentCodes.length > 0 && (
+          <div className="mt-6">
+            <p className="text-sm font-medium text-gray-500 mb-3">最近のリスト</p>
+            <div className="flex flex-col gap-2">
+              {recentCodes.map((code) => (
+                <div key={code} className="flex items-center gap-2">
+                  <button
+                    onClick={() => router.push(`/list/${code}`)}
+                    className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-3 text-left font-mono font-bold tracking-widest text-gray-800 hover:border-indigo-200 transition-colors shadow-sm"
+                  >
+                    {code}
+                  </button>
+                  <button
+                    onClick={() => handleRemoveRecent(code)}
+                    className="text-gray-300 hover:text-red-400 transition-colors text-xl px-2"
+                    aria-label={`${code} を削除`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

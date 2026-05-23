@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { ref, onValue, push, update, remove } from "firebase/database";
+import { saveRecentCode } from "@/lib/storage";
 
 const CODE_RE = /^[A-Z2-9]{4,8}$/;
 const ITEM_NAME_MAX = 200;
@@ -28,6 +29,7 @@ export default function ListPage({ params }: { params: Promise<{ code: string }>
       router.replace("/");
       return;
     }
+    saveRecentCode(code).catch(() => {});
     const listRef = ref(db, `lists/${code}/items`);
     const unsubscribe = onValue(listRef, (snapshot) => {
       setConnected(true);
