@@ -1,0 +1,188 @@
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { db } from "@/lib/firebase";
+import { ref, onValue, push, update, remove } from "firebase/database";
+
+interface Item {
+  id: string;
+  name: string;
+  checked: boolean;
+  createdAt: number;
+}
+
+export default function ListPage({ params }: { params: Promise<{ code: string }> }) {
+  const { code } = use(params);
+  const router = useRouter();
+  const [items, setItems] = useState<Item[]>([]);
+  const [newItem, setNewItem] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    const listRef = ref(db, `lists/${code}/items`);
+    const unsubscribe = onValue(listRef, (snapshot) => {
+      setConnected(true);
+      const data = snapshot.val();
+      if (data) {
+        const loaded: Item[] = Object.entries(data).map(([id, val]) => ({
+          id,
+          ...(val as Omit<Item, "id">),
+        }));
+        loaded.sort((a, b) => a.createdAt - b.createdAt);
+        setItems(loaded);
+      } else {
+        setItems([]);
+      }
+    });
+    return () => unsubscribe();
+  }, [code]);
+
+  const addItem = async () => {
+    const name = newItem.trim();
+    if (!name) return;
+    const listRef = ref(db, `lists/${code}/items`);
+    await push(listRef, { name, checked: false, createdAt: Date.now() });
+    setNewItem("");
+  };
+
+  const toggleItem = async (item: Item) => {
+    const itemRef = ref(db, `lists/${code}/items/${item.id}`);
+    await update(itemRef, { checked: !item.checked });
+  };
+
+  const deleteItem = async (itemId: string) => {
+    const itemRef = ref(db, `lists/${code}/items/${itemId}`);
+    await remove(itemRef);
+  };
+
+  const copyCode = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const checkedCount = items.filter((i) => i.checked).length;
+
+  return (
+    <main className="flex min-h-screen flex-col items-center px-4 py-8">
+      <div className="w-full max-w-sm">
+        {/* ヘッダー */}
+        <div className="flex items-center mb-6">
+          <button
+            onClick={() => router.push("/")}
+            className="text-gray-400 hover:text-gray-600 mr-3 text-xl"
+          >
+            ←
+          </button>
+          <div className="flex-1">
+            <h1 className="text-xl font-bold text-gray-800">🛒 買い物リスト</h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span
+                className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-400" : "bg-gray-300"}`}
+              />
+              <span className="text-xs text-gray-400">
+                {connected ? "同期中" : "接続中..."}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 共有コード */}
+        <button
+          onClick={copyCode}
+          className="w-full bg-white border border-gray-100 rounded-2xl p-4 shadow-sm mb-6 flex items-center justify-between group hover:border-indigo-200 transition-colors"
+        >
+          <div className="text-left">
+            <p className="text-xs text-gray-400 mb-1">共有コード（タップでコピー）</p>
+            <p className="text-2xl font-mono font-bold tracking-widest text-gray-800">
+              {code}
+            </p>
+          </div>
+          <span className="text-2xl">{copied ? "✅" : "📋"}</span>
+        </button>
+
+        {/* 進捗 */}
+        {items.length > 0 && (
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-gray-500 mb-1">
+              <span>{checkedCount} / {items.length} 完了</span>
+              <span>{items.length > 0 ? Math.round((checkedCount / items.length) * 100) : 0}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-400 rounded-full transition-all duration-300"
+                style={{ width: `${items.length > 0 ? (checkedCount / items.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* アイテムリスト */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+          {items.length === 0 ? (
+            <div className="py-12 text-center text-gray-300">
+              <div className="text-4xl mb-2">📝</div>
+              <p className="text-sm">まだアイテムがありません</p>
+            </div>
+          ) : (
+            <ul>
+              {items.map((item, index) => (
+                <li
+                  key={item.id}
+                  className={`flex items-center px-4 py-3.5 ${index !== items.length - 1 ? "border-b border-gray-50" : ""}`}
+                >
+                  <button
+                    onClick={() => toggleItem(item)}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center mr-3 flex-shrink-0 transition-colors ${
+                      item.checked
+                        ? "bg-indigo-500 border-indigo-500"
+                        : "border-gray-300 hover:border-indigo-300"
+                    }`}
+                  >
+                    {item.checked && (
+                      <span className="text-white text-xs">✓</span>
+                    )}
+                  </button>
+                  <span
+                    className={`flex-1 text-base ${
+                      item.checked ? "line-through text-gray-300" : "text-gray-700"
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                  <button
+                    onClick={() => deleteItem(item.id)}
+                    className="text-gray-200 hover:text-red-400 transition-colors ml-2 text-lg"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 入力欄 */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addItem()}
+            placeholder="アイテムを追加..."
+            className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-700"
+          />
+          <button
+            onClick={addItem}
+            disabled={!newItem.trim()}
+            className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 text-white px-5 py-3 rounded-xl font-semibold transition-colors"
+          >
+            追加
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
