@@ -20,13 +20,13 @@ interface Item {
 function describeFirebaseError(error: { code?: string; message: string }): string {
   switch (error.code) {
     case "PERMISSION_DENIED":
-      return "Firebase Realtime Database rules are blocking read/write access for this list code.";
+      return "このリストの読み書きが Firebase ルールで拒否されています。";
     case "UNAVAILABLE":
-      return "The database endpoint is unreachable. Check the database URL, region, or network access.";
+      return "Firebase の接続先に到達できません。URL やリージョンを確認してください。";
     case "NETWORK_ERROR":
-      return "A network error prevented Firebase from connecting.";
+      return "ネットワークエラーで Firebase に接続できませんでした。";
     case "DISCONNECTED":
-      return "Firebase disconnected before the initial data snapshot arrived.";
+      return "初回のデータ取得前に Firebase 接続が切断されました。";
     default:
       return `${error.code}: ${error.message}`;
   }
@@ -111,7 +111,7 @@ export default function ListPage() {
       setNewItem("");
       setAddError("");
     } catch {
-      setAddError("Could not add the item. Please check your connection and try again.");
+      setAddError("アイテムを追加できませんでした。接続を確認してもう一度お試しください。");
     }
   };
 
@@ -147,18 +147,18 @@ export default function ListPage() {
   };
 
   const checkedCount = items.filter((i) => i.checked).length;
-  const connectionBanner = connectionError || (connTimeout && !connected ? "Firebase connection timed out before the first snapshot arrived." : "");
+  const connectionBanner = connectionError || (connTimeout && !connected ? "Firebase に初回データを取得できませんでした。" : "");
 
   return (
     <main className="flex min-h-screen flex-col items-center px-4 py-8">
       <div className="w-full max-w-sm">
         {connectionBanner && (
           <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
-            <p className="font-semibold mb-1">Firebase connection problem</p>
+            <p className="font-semibold mb-1">Firebase に接続できません</p>
             <p>{connectionBanner}</p>
             <ul className="list-disc list-inside mt-1 space-y-0.5 text-red-600">
-              <li>Check that the Realtime Database URL points to the correct project and region.</li>
-              <li>If the code above says PERMISSION_DENIED, update the database rules or test auth.</li>
+              <li>Realtime Database の URL が正しいか確認してください。</li>
+              <li>Firebase ルールで `lists/${code}` の read/write が許可されているか確認してください。</li>
             </ul>
           </div>
         )}
@@ -182,7 +182,7 @@ export default function ListPage() {
                 }}
                 autoFocus
                 maxLength={ROOM_NAME_MAX}
-                placeholder="Enter room name"
+                placeholder="部屋名を入力"
                 className="w-full text-xl font-bold text-gray-800 border-b-2 border-indigo-400 focus:outline-none bg-transparent"
               />
             ) : (
@@ -191,7 +191,7 @@ export default function ListPage() {
                 className="flex items-center gap-1.5 group w-full text-left"
               >
                 <h1 className="text-xl font-bold text-gray-800 truncate">
-                  {roomName || "Untitled shopping list"}
+                  {roomName || "買い物リスト"}
                 </h1>
                 <span className="text-gray-300 group-hover:text-gray-500 text-sm flex-shrink-0">
                   ✎
@@ -205,7 +205,7 @@ export default function ListPage() {
                 }`}
               />
               <span className="text-xs text-gray-400">
-                {connected ? "Connected" : "Connecting..."}
+                {connected ? "接続中" : "接続中..."}
               </span>
             </div>
           </div>
@@ -216,19 +216,19 @@ export default function ListPage() {
           className="w-full bg-white border border-gray-100 rounded-2xl p-4 shadow-sm mb-6 flex items-center justify-between group hover:border-indigo-200 transition-colors"
         >
           <div className="text-left">
-            <p className="text-xs text-gray-400 mb-1">Share code</p>
+            <p className="text-xs text-gray-400 mb-1">共有コード（タップでコピー）</p>
             <p className="text-2xl font-mono font-bold tracking-widest text-gray-800">
               {code}
             </p>
           </div>
-          <span className="text-2xl">{copied ? "✓" : "⧉"}</span>
+          <span className="text-2xl">{copied ? "✅" : "📋"}</span>
         </button>
 
         {items.length > 0 && (
           <div className="mb-4">
             <div className="flex justify-between text-sm text-gray-500 mb-1">
               <span>
-                {checkedCount} / {items.length} done
+                {checkedCount} / {items.length} 完了
               </span>
               <span>{Math.round((checkedCount / items.length) * 100)}%</span>
             </div>
@@ -245,7 +245,7 @@ export default function ListPage() {
           {items.length === 0 ? (
             <div className="py-12 text-center text-gray-300">
               <div className="text-4xl mb-2">🧺</div>
-              <p className="text-sm">No items yet.</p>
+              <p className="text-sm">まだアイテムがありません</p>
             </div>
           ) : (
             <ul>
@@ -294,7 +294,7 @@ export default function ListPage() {
               setAddError("");
             }}
             onKeyDown={(e) => e.key === "Enter" && addItem()}
-            placeholder="Add an item..."
+            placeholder="アイテムを追加..."
             maxLength={ITEM_NAME_MAX}
             className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-300 text-gray-700"
           />
@@ -303,7 +303,7 @@ export default function ListPage() {
             disabled={!newItem.trim()}
             className="bg-indigo-500 hover:bg-indigo-600 disabled:bg-gray-200 text-white px-5 py-3 rounded-xl font-semibold transition-colors"
           >
-            Add
+            追加
           </button>
         </div>
         {addError && <p className="text-red-500 text-sm mt-2">{addError}</p>}
